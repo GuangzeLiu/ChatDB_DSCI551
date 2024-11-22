@@ -701,7 +701,7 @@ def upload_dataset_to_database(connection=None, db=None, db_type="MySQL"):
     """
     Upload a dataset into the connected database and display the updated tables or collections.
     """
-    file_path = input("Enter the full path to the dataset file: ").strip()
+    file_path = input("Enter the full path (.sql or.json) to the dataset file: ").strip()
 
     try:
         if db_type == "MySQL" and connection:
@@ -845,6 +845,7 @@ def drop_tables_or_schema(connection=None, db=None, db_type="MySQL"):
                             print(f"Error switching to new schema '{new_schema}': {e}")
                     else:
                         print("No new schema selected. You are now outside any schema context.")
+                        chatdb_menu()
                 else:
                     print("Drop operation cancelled.")
             else:
@@ -890,21 +891,9 @@ def drop_tables_or_schema(connection=None, db=None, db_type="MySQL"):
                     client.drop_database(current_db_name)
                     print(f"Database '{current_db_name}' has been dropped successfully.")
 
-                    # Show all available databases and allow the user to choose a new one
-                    databases = client.list_database_names()
-                    print("Available Databases:")
-                    for database in databases:
-                        print(f" - {database}")
-
-                    new_db_name = input("Enter the name of a new database to use, or leave empty to exit the current database context: ").strip()
-
-                    if new_db_name:
-                        new_db = client[new_db_name]
-                        print(f"Switched to new database '{new_db_name}'.")
-                        return new_db  # Return the new database object
-                    else:
-                        print("No new database selected. You are now outside any database context.")
-                        return None
+                    # Return to main menu after dropping the database
+                    print("Returning to the main menu.")
+                    chatdb_menu()  # Call main menu
                 else:
                     print("Drop operation cancelled.")
             else:
@@ -1172,8 +1161,8 @@ def chatdb_menu():
                 while True:
                     print("\n--- MongoDB Options ---")
                     print("1. Show collections and fields")
-                    print("2. Upload a dataset")
-                    print("3. Delete a dataset")
+                    print("2. Upload a collection")
+                    print("3. Delete a collection")
                     print("4. Sample queries")
                     print("0. Back to main menu")
 
@@ -1200,7 +1189,6 @@ def chatdb_menu():
 
         else:
             print("Invalid choice. Please enter '1' for MySQL, '2' for MongoDB, or '0' to exit.")
-
 
 
 if __name__ == "__main__":
