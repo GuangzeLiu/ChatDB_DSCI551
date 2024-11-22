@@ -918,9 +918,13 @@ def query_decision(connection=None, db=None, db_type="MySQL"):
             print("3. Execute a sample MySQL query")
         if db_type == "MongoDB":
             print("3. Execute a sample MongoDB query")
+        if db_type == "MySQL":
+            print("4. Enter a natural language query")
+        if db_type == "MongoDB":
+            print("4. Enter a natural language query")
         print("0. Back")
 
-        decision = input("Enter your choice (1/2/3/0): ").strip()
+        decision = input("Enter your choice (1/2/3/4/0): ").strip()
 
         if decision == "1":
             if db_type == "MySQL":
@@ -1110,6 +1114,34 @@ def query_decision(connection=None, db=None, db_type="MySQL"):
                         print(f"Error executing MongoDB query: {e}")
                 else:
                     print("MongoDB connection is not available.")
+        elif decision == "4":
+            if db_type == "MySQL":
+                if connection:
+                    user_query = input("Enter your natural language query: ").strip()
+                    result = process_natural_language_query(user_query, connection)
+                    if result:
+                        print("\nGenerated Query Description:")
+                        print(result["description"])
+                        print("\nGenerated Query:")
+                        print(result["query"])
+
+                        # Execute the query
+                        try:
+                            cursor = connection.cursor()
+                            cursor.execute(result["query"])
+                            results = cursor.fetchall()
+                            if results:
+                                print("\nQuery Results:")
+                                for row in results:
+                                    print(row)
+                            else:
+                                print("The query executed successfully but returned no results.")
+                        except Exception as e:
+                            print(f"Error executing query: {e}")
+                    else:
+                        print("Could not process the natural language query.")
+                else:
+                    print("MySQL connection is not available.")
         elif decision == "0":
             print("Exiting to main menu.")
             break
@@ -1117,6 +1149,126 @@ def query_decision(connection=None, db=None, db_type="MySQL"):
         else:
             print("Invalid choice. Please try again.")
 
+def process_natural_language_query(user_query, connection): 
+    """
+    Process a natural language query, dynamically infer tables and columns, and generate a precise SQL query.
+    """
+    if connection is None:
+        print("MySQL connection is not available.")
+        return None
+
+    # Retrieve schema information
+    cursor = connection.cursor()
+    cursor.execute("SHOW TABLES;")
+    tables = [table[0] for table in cursor.fetchall()]
+
+    # Get columns and their types for each table
+    table_columns = {}
+    column_types = {}
+    for table in tables:
+        cursor.execute(f"SHOW COLUMNS FROM {table};")
+        columns_info = cursor.fetchall()
+        table_columns[table] = [column[0].lower() for column in columns_info]
+        column_types[table] = {column[0].lower(): column[1].lower() for column in columns_info}
+
+    # Normalize user query
+    user_query = user_query.lower()
+
+    # Supported operations and keywords
+    operations = ["sum", "count", "average", "max", "min", "group by", "having", "order by", "exists"]
+    operation = next((op for op in operations if op in user_query), None)
+
+    # Dynamic table and column inference
+    matching_table = None
+    matching_columns = []
+
+    # Infer table and columns from user query
+    for table, columns in table_columns.items():
+        if table in user_query:  # Prioritize explicit table names
+            matching_table = table
+            matching_columns = columns
+            break
+        for column in columns:
+            if column in user_query:  # Match columns to infer table
+                matching_table = table
+                matching_columns.append(column)
+
+    # Fallback to the first table if no specific match
+    if not matching_table:
+        matching_table = tables[0]
+        matching_columns = table_columns[matching_table]
+
+    # Distinguish numeric and text columns dynamically
+    numeric_columns = [col for col, dtype in column_types[matching_table].items() if "int" in dtype or "float" in dtype]
+    text_columns = [col for col, dtype in column_types[matching_table].items() if "char" in dtype or "text" in dtype]
+
+    # Refine column selection based on user query
+    group_by_column = next((col for col in matching_columns if col in user_query), 
+                           next((col for col in text_columns if col in user_query), 
+                                text_columns[0] if text_columns else None))
+
+    aggregate_column = next((col for col in numeric_columns if col in user_query), 
+                            numeric_columns[0] if numeric_columns else None)
+
+    # Handle HAVING clause
+    having_condition = None
+    if "having" in user_query:
+        threshold = extract_numeric_value(user_query)
+        if threshold and aggregate_column:
+            having_condition = f"HAVING SUM({aggregate_column}) > {threshold}"
+
+    # Construct SQL query
+    query = None
+    description = None
+
+    try:
+        # Handle "group by" with aggregation (SUM or COUNT)
+        if "group by" in user_query and group_by_column:
+            if "sum" in user_query or "total" in user_query:  # SUM for total population
+                query = f"SELECT {group_by_column}, SUM({aggregate_column}) AS total FROM {matching_table} GROUP BY {group_by_column} {having_condition or ''} LIMIT 10;"
+                description = f"Groups records in the '{matching_table}' table by {group_by_column} and calculates the total of {aggregate_column} where the total exceeds the specified threshold."
+            elif "count" in user_query:  # COUNT grouped by
+                query = f"SELECT {group_by_column}, COUNT(*) AS count FROM {matching_table} GROUP BY {group_by_column} LIMIT 10;"
+                description = f"Counts the number of records in the '{matching_table}' table grouped by {group_by_column}."
+
+        # Handle "check" or "exists" queries
+        elif "check" in user_query or "exists" in user_query:
+            threshold = extract_numeric_value(user_query)
+            query = f"SELECT EXISTS (SELECT 1 FROM {matching_table} WHERE {aggregate_column} > {threshold});"
+            description = f"Checks if any record exists in the '{matching_table}' table where {aggregate_column} exceeds {threshold}."
+
+        # Handle "order by" queries
+        elif "order by" in user_query:
+            order_direction = "DESC" if "desc" in user_query else "ASC"
+            query = f"SELECT * FROM {matching_table} ORDER BY {aggregate_column} {order_direction} LIMIT 10;"
+            description = f"Orders records in the '{matching_table}' table by {aggregate_column} in {order_direction} order."
+
+        # Default query
+        else:
+            query = f"SELECT * FROM {matching_table} LIMIT 10;"
+            description = f"Displays the first 10 records from the '{matching_table}' table."
+
+        return {"query": query, "description": description}
+    except Exception as e:
+        print(f"Error constructing query: {e}")
+        return None
+
+def extract_numeric_value(user_query):
+   
+    words = user_query.split()
+    for i, word in enumerate(words):
+        if word.isdigit():
+            value = int(word)
+            if i + 1 < len(words):
+                multiplier = words[i + 1]
+                if multiplier == "million":
+                    value *= 1_000_000
+                elif multiplier == "thousand":
+                    value *= 1_000
+                elif multiplier == "billion":
+                    value *= 1_000_000_000
+            return value
+    return None
 
 def chatdb_menu():
     while True:
