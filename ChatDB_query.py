@@ -3,6 +3,15 @@ from pymongo import MongoClient
 import random
 import getpass
 import pandas as pd
+from difflib import get_close_matches
+
+import inflect
+
+import re
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from nltk.stem import WordNetLemmatizer
 
 
 # Function to connect to MySQL
@@ -905,6 +914,442 @@ def drop_tables_or_schema(connection=None, db=None, db_type="MySQL"):
         print(f"Error dropping tables or schema/database: {e}")
 
 
+def get_table_schema(connection):
+    """
+    Fetch table schema information dynamically from the database.
+    """
+    cursor = connection.cursor()
+    cursor.execute("SHOW TABLES;")
+    tables = cursor.fetchall()
+
+    schema = {}
+    for (table,) in tables:
+        cursor.execute(f"SHOW COLUMNS FROM {table};")
+        columns = cursor.fetchall()
+        schema[table] = [column[0].lower() for column in columns]
+    return schema
+
+
+def map_field_to_column(user_field, schema):
+    """
+    Map user-provided field names to actual database columns using schema.
+    Leverage NLTK for tokenization, lemmatization, and normalization.
+    """
+
+    # Initialize NLTK tools
+    lemmatizer = WordNetLemmatizer()
+    stop_words = set(stopwords.words("english"))
+
+    # Normalize user field (tokenize, lemmatize, and remove stopwords)
+    def normalize(text):
+        tokens = word_tokenize(text.lower())  # Tokenize and lowercase
+        tokens = [lemmatizer.lemmatize(token) for token in tokens]  # Lemmatize
+        tokens = [token for token in tokens if token not in stop_words]  # Remove stopwords
+        return "".join(tokens)  # Join tokens to form a normalized string
+    # Normalize schema columns
+    field_mapping = {}
+    for table, columns in schema.items():
+        for column in columns:
+            normalized_column = normalize(column)
+            field_mapping[normalized_column] = column  # Map normalized column to the original
+
+    # Normalize user input
+    user_field_normalized = normalize(user_field)
+
+    # Attempt to find the closest match
+    match = get_close_matches(user_field_normalized, field_mapping.keys(), n=1, cutoff=0.6)
+    
+    if match:
+        mapped_field = field_mapping[match[0]]
+        return mapped_field
+
+    print(f"Failed to map field '{user_field}'.")
+    return user_field
+
+
+def find_table_for_columns(columns, schema):
+   
+    for table, table_columns in schema.items():
+       
+        if all(column in table_columns for column in columns):
+          
+            return table
+
+    return None
+
+sql_patterns = [
+    {
+        "pattern": r"\b(count|number of|how many)\b\s+([\w\s]+)\s+(group by|by|categorized by|organized by)\s+(\w+)(?:\s+having\s+([\w\s<>!=\'\"]+))?",
+        "description": "Counts occurrences of '<field>' grouped by '<group_field>' with optional 'HAVING' clause.",
+        "query_template": "SELECT {group_by}, COUNT({total_field}) AS total FROM {table} GROUP BY {group_by} {having_clause};"
+    },
+    {
+        "pattern": r"\b(sum|add up|aggregate|total)\b\s+([\w\s]+)\s+(groupby|by|group by|categorized by|organized by)\s+(\w+)(?:\s+having\s+([\w\s<>!=().]+))?",
+        "description": "Calculates the sum of '<field>' grouped by '<group_field>' with optional 'HAVING' clause.",
+        "query_template": "SELECT {group_by}, SUM({sum_field}) AS total_sum FROM {table} GROUP BY {group_by} {having_clause};"
+    },
+    {
+        "pattern": r"\b(average|avg|mean|compute average)\s+([\w\s]+)\s+(groupby|by|group by|categorized by|organized by)\s+(\w+)(?:\s+having\s+(.+))?",
+        "description": "Calculates the average of '<field>' grouped by '<group_field>' with optional 'HAVING' clause.",
+        "query_template": "SELECT {group_by}, AVG({avg_field}) AS average FROM {table} GROUP BY {group_by} {having_clause};"
+    },
+    
+   {
+    "pattern": r"\b(select|filter|find)\b\s+([\w\s]+)\s+(group by|groupby|by)\s+([\w\s]+)\s+where\s+(.+)",
+    "description": "Selects rows from '<table>' where '<condition>' grouped by '<group_field>'.",
+    "query_template": "SELECT * FROM {table} {where_clause} GROUP BY {group_by};"
+}
+
+
+
+
+
+]
+
+
+
+def process_natural_language_query_mysql(user_query, connection=None, db_type="MySQL"):
+    """
+    Process the natural language query and map it to a SQL query, with support for HAVING, WHERE, and comparison operators.
+    """
+    import re
+
+    user_query = user_query.replace("group by", "by")
+    # Fetch schema dynamically if MySQL
+    if connection and db_type == "MySQL":
+        schema = get_table_schema(connection)
+    else:
+        schema = {}
+
+    for pattern in sql_patterns:
+        match = re.search(pattern["pattern"], user_query, re.IGNORECASE)
+        if match:
+            groups = match.groups()
+            print(f"Matched groups: {groups}")
+            operation = groups[0]  # Extract operation (e.g., "count", "sum")
+            field = groups[1]  # Extract target field
+            group_by = groups[3] if len(groups) > 3 else None  # Extract group by field
+            if len(groups) > 4 and groups[4]:
+                condition = groups[4].strip()
+                print(f"Condition extracted: {condition}")
+            else:
+                condition = None
+                print("Condition not captured.")
+
+           
+            # Map fields to schema columns
+            field_mapped = clean_and_map_field(field, schema)
+            group_by_mapped = clean_and_map_field(group_by, schema) if group_by else None
+
+            total_field_mapped = map_field_to_column(field_mapped, schema)
+            group_by_mapped = map_field_to_column(group_by_mapped, schema)
+
+            # Identify the table that contains the fields
+            table = find_table_for_columns([total_field_mapped] + ([group_by_mapped] if group_by else []), schema)
+            if not table:
+                print(f"Error: Could not find a table containing the fields '{field}' and '{group_by}'.")
+                return None
+
+            # Determine the placeholder dynamically based on the operation
+            field_placeholder = (
+                "avg_field" if operation.lower() in ["average", "avg", "mean", "compute average"] else
+                "sum_field" if operation.lower() in ["sum", "add up", "aggregate", "total"] else
+                "total_field"
+            )
+            if condition and "having" in user_query.lower():
+                if "sum_field" in field_placeholder:
+                    condition = condition.replace(total_field_mapped, "total_sum")
+                elif "avg_field" in field_placeholder:
+                    condition = condition.replace(total_field_mapped, "average")
+                having_clause = f"HAVING {condition}"
+            else:
+                having_clause = ""
+
+            if condition and "where" in user_query.lower():
+                where_clause = f"WHERE {condition}"
+            else:
+                where_clause = ""
+
+            # Ensure there is no duplicate WHERE
+            if where_clause.startswith("WHERE WHERE"):
+                where_clause = where_clause.replace("WHERE WHERE", "WHERE")
+
+            print(f"Condition: {condition}, Having Clause: {having_clause}, Where Clause: {where_clause}")
+        
+            # Construct the query dynamically
+            try:
+                query = pattern["query_template"].format(
+                    **{
+                        field_placeholder: total_field_mapped,
+                        "group_by": group_by_mapped,
+                        "table": table, 
+                        "having_clause": having_clause,
+                        "where_clause": where_clause
+                    }
+                )
+            except KeyError as e:
+                print(f"Error: Missing placeholder in the query template: {e}")
+                return None
+
+            # Dynamically update the description
+            description = pattern["description"].replace("<field>", field).replace("<group_field>", group_by)
+
+            return {
+                "description": description,
+                "query": query
+            }
+
+    print("No matching query pattern found for the given natural language query.")
+    return None
+
+def clean_field(field):
+    
+   
+    cleaned_field = re.sub(r"\b(grouped|group by|from|where|having|select|order|as|into)\b", "", field, flags=re.IGNORECASE).strip()
+   
+    return cleaned_field.strip()
+def generate_join_query(columns, schema):
+   
+    tables_with_columns = {table: [col for col in columns if col in table_columns] 
+                           for table, table_columns in schema.items()}
+    involved_tables = [table for table, cols in tables_with_columns.items() if cols]
+    if len(involved_tables) > 1:
+        
+        join_query = f"SELECT {columns[0]}, COUNT({columns[1]}) FROM {involved_tables[0]} "
+        join_query += f"INNER JOIN {involved_tables[1]} ON {involved_tables[0]}.key = {involved_tables[1]}.key "
+        join_query += f"GROUP BY {columns[0]}"
+        return join_query
+    return None
+def clean_and_map_field(field, schema):
+   
+    cleaned_field = clean_field(field)  
+    mapped_field = map_field_to_column(cleaned_field, schema) 
+    return mapped_field
+
+def mongo_get_collection_schema(db):
+
+    """
+    Fetch schema information dynamically from MongoDB collections.
+    """
+    schema = {}
+    collections = db.list_collection_names()
+    for collection_name in collections:
+        collection = db[collection_name]
+        sample_doc = collection.find_one()
+        if sample_doc:
+            schema[collection_name] = list(sample_doc.keys())  # Collect field names from a sample document
+    return schema
+def mongo_find_collection_for_fields(fields, schema):
+    """
+    Find a MongoDB collection containing all specified fields.
+    """
+    for collection, collection_fields in schema.items():
+        if all(field in collection_fields for field in fields):
+            return collection
+    return None
+mongo_patterns = [
+    {
+        "pattern": r"\b(count|number of|how many)\b\s+([\w\s]+)\s+(group by|by|categorized by|organized by)\s+(\w+)(?:\s+having\s+([\w\s<>!=().]+))?",
+        "description": "Counts occurrences of '<field>' grouped by '<group_field>' with optional 'HAVING' clause.",
+        "query_template": [
+            {"$group": {"_id": "${group_by}", "count": {"$sum": 1}}},
+            {"$match": {}}
+        ]
+    },
+    {
+        "pattern": r"\b(sum|add up|aggregate|total)\b\s+([\w\s]+)\s+(groupby|by|group by|categorized by|organized by)\s+(\w+)(?:\s+having\s+([\w\s<>!=().]+))?",
+        "description": "Calculates the sum of '<field>' grouped by '<group_field>' with optional 'HAVING' clause.",
+        "query_template": [
+            {"$group": {"_id": "${group_by}", "total_sum": {"$sum": "${sum_field}"}}},
+            {"$match": {}}
+        ]
+    },
+    {
+        "pattern": r"\b(average|avg|mean|compute average)\s+([\w\s]+)\s+(groupby|by|group by|categorized by|organized by)\s+(\w+)(?:\s+having\s+([\w\s<>!=().]+))?",
+        "description": "Calculates the average of '<field>' grouped by '<group_field>' with optional 'HAVING' clause.",
+        "query_template": [
+            {"$group": {"_id": "${group_by}", "average": {"$avg": "${avg_field}"}}},
+            {"$match": {}}
+        ]
+    },
+   {
+    "pattern": r"\b(select|filter|find)\b\s+([\w\s]+)\s+(where)\s+(\w+)\s*(==|!=|>|<|>=|<=|=)\s*['\"]?(.+?)['\"]?$",
+    "description": "Finds documents from '<collection>' where '<field> <operator> <value>' applies.",
+    "query_template": [{"$match": {}}]
+}
+
+
+
+]
+
+
+def process_natural_language_query_mongodb(user_query, db=None):
+    """
+    Process natural language query for MongoDB and generate an aggregation pipeline.
+    """
+    import re
+    user_query = user_query.replace("group by", "by")
+
+    def normalize_field_name(user_field, schema):
+        """
+        Normalize user-provided field names to match MongoDB schema fields.
+        """
+        from difflib import get_close_matches
+        normalized_field = user_field.strip().lower().replace(" ", "_")  # Basic normalization
+        for collection, fields in schema.items():
+            closest_match = get_close_matches(normalized_field, fields, n=1, cutoff=0.6)
+            if closest_match:
+                return closest_match[0], collection
+        return None, None
+
+    # Fetch the schema
+    schema = mongo_get_collection_schema(db)
+
+    for pattern in mongo_patterns:
+        match = re.search(pattern["pattern"], user_query, re.IGNORECASE)
+        if match:
+            groups = match.groups()
+            print(f"Matched groups: {groups}")
+            operation = groups[0]  # Extract operation (e.g., "find", "filter")
+            field = groups[1]  # Extract target field
+            group_by = groups[3] if len(groups) > 3 else None  # Extract group by field
+            where_field = groups[3] if len(groups) > 3 else None
+            operator = groups[4] if len(groups) > 4 else None  # Extract operator
+            value = groups[5] if len(groups) > 5 else None  # Extract value
+
+            # Map fields to schema fields
+            field_mapped, collection_for_field = normalize_field_name(field, schema)
+            group_by_mapped, collection_for_group_by = normalize_field_name(group_by, schema) if group_by else (None, None)
+            where_field_mapped, collection_for_where = normalize_field_name(where_field, schema)
+
+            
+            if not field_mapped:
+                print(f"Error: Could not map the field '{field}' to any collection.")
+                return None
+
+            if group_by and not group_by_mapped:
+                print(f"Error: Could not map the group_by field '{group_by}' to any collection.")
+                return None
+            if not where_field_mapped:
+                print(f"Error: Could not map the where field '{where_field}' to any collection.")
+                return None
+
+            # Ensure both fields are in the same collection
+            if collection_for_field != collection_for_where:
+                print(f"Error: Fields '{field_mapped}' and '{where_field_mapped}' are in different collections.")
+                return None
+            collection = collection_for_field
+
+            # Ensure both fields are in the same collection
+            if group_by and collection_for_field != collection_for_group_by:
+                print(f"Error: Fields '{field_mapped}' and '{group_by_mapped}' are in different collections.")
+                return None
+
+            # Build the aggregation pipeline
+            pipeline = []
+            if value:
+                try:
+                    # Parse value type
+                    value = value.strip()  # Remove any surrounding whitespace
+                    if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+                        # String value
+                        value = value.strip('"').strip("'")
+                    elif value.isdigit():  # Integer value
+                        value = int(value)
+                    else:
+                        # Float value or leave as string if it cannot be parsed
+                        try:
+                            value = float(value)
+                        except ValueError:
+                            value = str(value)
+                except ValueError as ve:
+                    print(f"Error: Unable to parse the value '{value}'.")
+                    return None
+
+                # Add $match stage with the condition
+                operator_map = {
+                    ">": "$gt",
+                    "<": "$lt",
+                    ">=": "$gte",
+                    "<=": "$lte",
+                    "==": "$eq",
+                    "=": "$eq",
+                    "!=": "$ne"
+                }
+
+                if operator in operator_map:
+                    mongo_operator = operator_map[operator]
+                    pipeline.append({"$match": {where_field_mapped: {mongo_operator: value}}})
+                else:
+                    print(f"Error: Unsupported operator '{operator}'.")
+                    return None
+
+            if group_by:
+                # Add $group stage for grouping
+                pipeline.append({
+                    "$group": {
+                        "_id": f"${group_by_mapped}",
+                        field_mapped: {"$first": f"${field_mapped}"}
+                    }
+                })
+
+            if not group_by:
+                # Include fields in the projection if there's no grouping
+                pipeline.append({
+                    "$project": {
+                        "_id": 0,
+                        field_mapped: 1,
+                        group_by_mapped: 1 if group_by else None
+                    }
+                })
+
+            print(f"Condition: {operator} {value if value else ''}, Pipeline: {pipeline}")
+
+            description = pattern["description"].replace("<field>", field).replace(
+    "<field> <operator> <value>", f"{where_field} {operator} {value}"
+)
+
+            return {
+                "description": description,
+                "pipeline": pipeline,
+                "collection": collection
+            }
+
+    print("No matching query pattern found for the given natural language query.")
+    return None
+
+
+
+def show_mongodb_collections_and_fields(db):
+    if db is None:
+        print("MongoDB connection is not available.")
+        return
+
+    # List all collections
+    collections = db.list_collection_names()
+
+    if not collections:
+        print("No collections found in the MongoDB database.")
+        return
+
+    print("\nAvailable MongoDB Collections:")
+    for collection_name in collections:
+        print(f"Collection: {collection_name}")
+
+        # Fetch a sample document to display its fields
+        collection = db[collection_name]
+        sample_doc = collection.find_one()
+
+        if sample_doc:
+            print("Fields:")
+            for key in sample_doc.keys():
+                print(f" - {key}")
+        else:
+            print(f" - No documents found in collection '{collection_name}'")
+
+        print("\n")  # Newline after each collection for clarity
+
+
 def query_decision(connection=None, db=None, db_type="MySQL"):
     generated_queries = []
     while True:
@@ -918,13 +1363,9 @@ def query_decision(connection=None, db=None, db_type="MySQL"):
             print("3. Execute a sample MySQL query")
         if db_type == "MongoDB":
             print("3. Execute a sample MongoDB query")
-        if db_type == "MySQL":
-            print("4. Enter a natural language query")
-        if db_type == "MongoDB":
-            print("4. Enter a natural language query")
         print("0. Back")
 
-        decision = input("Enter your choice (1/2/3/4/0): ").strip()
+        decision = input("Enter your choice (1/2/3/0): ").strip()
 
         if decision == "1":
             if db_type == "MySQL":
@@ -1114,34 +1555,6 @@ def query_decision(connection=None, db=None, db_type="MySQL"):
                         print(f"Error executing MongoDB query: {e}")
                 else:
                     print("MongoDB connection is not available.")
-        elif decision == "4":
-            if db_type == "MySQL":
-                if connection:
-                    user_query = input("Enter your natural language query: ").strip()
-                    result = process_natural_language_query(user_query, connection)
-                    if result:
-                        print("\nGenerated Query Description:")
-                        print(result["description"])
-                        print("\nGenerated Query:")
-                        print(result["query"])
-
-                        # Execute the query
-                        try:
-                            cursor = connection.cursor()
-                            cursor.execute(result["query"])
-                            results = cursor.fetchall()
-                            if results:
-                                print("\nQuery Results:")
-                                for row in results:
-                                    print(row)
-                            else:
-                                print("The query executed successfully but returned no results.")
-                        except Exception as e:
-                            print(f"Error executing query: {e}")
-                    else:
-                        print("Could not process the natural language query.")
-                else:
-                    print("MySQL connection is not available.")
         elif decision == "0":
             print("Exiting to main menu.")
             break
@@ -1149,126 +1562,6 @@ def query_decision(connection=None, db=None, db_type="MySQL"):
         else:
             print("Invalid choice. Please try again.")
 
-def process_natural_language_query(user_query, connection): 
-    """
-    Process a natural language query, dynamically infer tables and columns, and generate a precise SQL query.
-    """
-    if connection is None:
-        print("MySQL connection is not available.")
-        return None
-
-    # Retrieve schema information
-    cursor = connection.cursor()
-    cursor.execute("SHOW TABLES;")
-    tables = [table[0] for table in cursor.fetchall()]
-
-    # Get columns and their types for each table
-    table_columns = {}
-    column_types = {}
-    for table in tables:
-        cursor.execute(f"SHOW COLUMNS FROM {table};")
-        columns_info = cursor.fetchall()
-        table_columns[table] = [column[0].lower() for column in columns_info]
-        column_types[table] = {column[0].lower(): column[1].lower() for column in columns_info}
-
-    # Normalize user query
-    user_query = user_query.lower()
-
-    # Supported operations and keywords
-    operations = ["sum", "count", "average", "max", "min", "group by", "having", "order by", "exists"]
-    operation = next((op for op in operations if op in user_query), None)
-
-    # Dynamic table and column inference
-    matching_table = None
-    matching_columns = []
-
-    # Infer table and columns from user query
-    for table, columns in table_columns.items():
-        if table in user_query:  # Prioritize explicit table names
-            matching_table = table
-            matching_columns = columns
-            break
-        for column in columns:
-            if column in user_query:  # Match columns to infer table
-                matching_table = table
-                matching_columns.append(column)
-
-    # Fallback to the first table if no specific match
-    if not matching_table:
-        matching_table = tables[0]
-        matching_columns = table_columns[matching_table]
-
-    # Distinguish numeric and text columns dynamically
-    numeric_columns = [col for col, dtype in column_types[matching_table].items() if "int" in dtype or "float" in dtype]
-    text_columns = [col for col, dtype in column_types[matching_table].items() if "char" in dtype or "text" in dtype]
-
-    # Refine column selection based on user query
-    group_by_column = next((col for col in matching_columns if col in user_query), 
-                           next((col for col in text_columns if col in user_query), 
-                                text_columns[0] if text_columns else None))
-
-    aggregate_column = next((col for col in numeric_columns if col in user_query), 
-                            numeric_columns[0] if numeric_columns else None)
-
-    # Handle HAVING clause
-    having_condition = None
-    if "having" in user_query:
-        threshold = extract_numeric_value(user_query)
-        if threshold and aggregate_column:
-            having_condition = f"HAVING SUM({aggregate_column}) > {threshold}"
-
-    # Construct SQL query
-    query = None
-    description = None
-
-    try:
-        # Handle "group by" with aggregation (SUM or COUNT)
-        if "group by" in user_query and group_by_column:
-            if "sum" in user_query or "total" in user_query:  # SUM for total population
-                query = f"SELECT {group_by_column}, SUM({aggregate_column}) AS total FROM {matching_table} GROUP BY {group_by_column} {having_condition or ''} LIMIT 10;"
-                description = f"Groups records in the '{matching_table}' table by {group_by_column} and calculates the total of {aggregate_column} where the total exceeds the specified threshold."
-            elif "count" in user_query:  # COUNT grouped by
-                query = f"SELECT {group_by_column}, COUNT(*) AS count FROM {matching_table} GROUP BY {group_by_column} LIMIT 10;"
-                description = f"Counts the number of records in the '{matching_table}' table grouped by {group_by_column}."
-
-        # Handle "check" or "exists" queries
-        elif "check" in user_query or "exists" in user_query:
-            threshold = extract_numeric_value(user_query)
-            query = f"SELECT EXISTS (SELECT 1 FROM {matching_table} WHERE {aggregate_column} > {threshold});"
-            description = f"Checks if any record exists in the '{matching_table}' table where {aggregate_column} exceeds {threshold}."
-
-        # Handle "order by" queries
-        elif "order by" in user_query:
-            order_direction = "DESC" if "desc" in user_query else "ASC"
-            query = f"SELECT * FROM {matching_table} ORDER BY {aggregate_column} {order_direction} LIMIT 10;"
-            description = f"Orders records in the '{matching_table}' table by {aggregate_column} in {order_direction} order."
-
-        # Default query
-        else:
-            query = f"SELECT * FROM {matching_table} LIMIT 10;"
-            description = f"Displays the first 10 records from the '{matching_table}' table."
-
-        return {"query": query, "description": description}
-    except Exception as e:
-        print(f"Error constructing query: {e}")
-        return None
-
-def extract_numeric_value(user_query):
-   
-    words = user_query.split()
-    for i, word in enumerate(words):
-        if word.isdigit():
-            value = int(word)
-            if i + 1 < len(words):
-                multiplier = words[i + 1]
-                if multiplier == "million":
-                    value *= 1_000_000
-                elif multiplier == "thousand":
-                    value *= 1_000
-                elif multiplier == "billion":
-                    value *= 1_000_000_000
-            return value
-    return None
 
 def chatdb_menu():
     while True:
@@ -1288,6 +1581,7 @@ def chatdb_menu():
                     print("2. Upload a dataset")
                     print("3. Delete a dataset")
                     print("4. Sample queries")
+                    print("5. Enter a natural language query")
                     print("0. Back to main menu")
 
                     choice = input("Choose an option: ").strip()
@@ -1300,13 +1594,38 @@ def chatdb_menu():
                         drop_tables_or_schema(connection=connection, db_type="MySQL")
                     elif choice == "4":
                         query_decision(connection=connection, db_type="MySQL")
+                    elif choice == "5":
+                        # For MySQL Queries
+                        if connection:
+                            user_query = input("Enter your natural language query: ").strip()
+
+                            # Process the query
+                            result = process_natural_language_query_mysql(user_query, connection=connection, db_type="MySQL")
+                            if result:
+                                print("\nGenerated Query Description:")
+                                print(result["description"])
+                                print("\nGenerated Query:")
+                                print(result["query"])
+
+                                # Execute the query
+                                try:
+                                    cursor = connection.cursor()
+                                    cursor.execute(result["query"])
+                                    results = cursor.fetchall()
+                                    if results:
+                                        print("\nQuery Results:")
+                                        for row in results:
+                                            print(row)
+                                    else:
+                                        print("The query executed successfully but returned no results.")
+                                except Exception as e:
+                                    print(f"Error executing query: {e}")
+                            else:
+                                print("Could not process the natural language query.")
+                        else:
+                            print("MySQL connection is not available.")
                     elif choice == "0":
                         break
-                    else:
-                        print("Invalid option. Please try again.")
-            else:
-                print("Failed to connect to MySQL.")
-
         elif db_type == "2":
             db = connect_mongodb()
             if db is not None:
@@ -1316,6 +1635,7 @@ def chatdb_menu():
                     print("2. Upload a collection")
                     print("3. Delete a collection")
                     print("4. Sample queries")
+                    print("5. Ask Question")
                     print("0. Back to main menu")
 
                     choice = input("Choose an option: ").strip()
@@ -1328,13 +1648,38 @@ def chatdb_menu():
                         drop_tables_or_schema(db=db, db_type="MongoDB")
                     elif choice == "4":
                         query_decision(db=db, db_type="MongoDB")
+                    elif choice == "5":
+                        if db is not None:
+                            user_query = input("Enter your natural language query: ").strip()
+                            # Call the general function for processing natural language queries
+                            result = process_natural_language_query_mongodb(user_query, db=db)
+                            if result:
+                            
+
+                               
+                                    # Display the query results
+                                    
+                                        print("Generated Query Description:", result["description"])
+                                        print("Generated Query Pipeline:", result["pipeline"])  # Ensure we access the correct key
+                                        print("Target Collection:", result["collection"])
+
+                                        # Execute the query
+                                        try:
+                                            collection = db[result["collection"]]
+                                            results = list(collection.aggregate(result["pipeline"]))  # Adjust to execute the pipeline
+                                            if results:
+                                                print("\nQuery Results:")
+                                                for doc in results:
+                                                    print(doc)
+                                            else:
+                                                print("The query executed successfully but returned no results.")
+                                        except Exception as e:
+                                            print(f"Error executing query: {e}")
+                            else:
+                                        print("Could not process the query.")
+
                     elif choice == "0":
                         break
-                    else:
-                        print("Invalid option. Please try again.")
-            else:
-                print("Failed to connect to MongoDB.")
-
         elif db_type == "0":
             print("Exiting the system... Have a good day :) ")
             exit()
