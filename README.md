@@ -1,60 +1,80 @@
-# ChatDB Project
+# ChatDB
 
-This project provides a command-line interface for interacting with MySQL and MongoDB databases. It supports querying, database exploration, and connection handling.
+ChatDB is an interactive application that simplifies database interactions for both SQL (MySQL) and NoSQL (MongoDB) databases. It allows users to query, upload, delete, and explore datasets using either natural language or predefined constructs, making database management intuitive and user-friendly.
 
-## Prerequisites
+## Features
 
+### General Features
+- Support for **MySQL** and **MongoDB** databases.
+- Secure credential handling for database connections.
+- Dynamic schema exploration:
+    - View tables and columns in MySQL.
+    - View collections and fields in MongoDB.
+
+### MySQL Features
+- Generate sample queries with advanced SQL constructs like:
+    - `GROUP BY`
+    - `HAVING`
+    - `JOIN`
+    - `ORDER BY`
+- Execute queries and display results.
+- Upload datasets from `.sql` files.
+- Delete specific tables or entire schemas.
+- Process natural language queries into SQL.
+
+### MongoDB Features
+- Generate aggregation pipelines for constructs like:
+    - `$group`
+    - `$match`
+    - `$sort`
+    - `$limit`
+- Execute queries and display results.
+- Upload datasets from `.json` files.
+- Delete specific collections or entire databases.
+- Process natural language queries into MongoDB pipelines.
+
+## Installation
+
+### Prerequisites
 - Python 3.8 or higher
-- `pip` package manager
-- Installed MySQL and/or MongoDB servers
+- MySQL server and/or MongoDB server
 
-## Setup Instructions
+### Setup
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-repository/chatdb.git
+   cd chatdb
+   ```
+2. Install dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+3. Ensure that the nltk data is downloaded:
+    ```bash
+    import nltk
+    nltk.download('stopwords')
+    nltk.download('wordnet')
+    nltk.download('punkt')
+    nltk.download('punkt_tab')
+    ```
+## Usage
 
-### 1. **Clone the Repository**
-Clone the project repository to your local machine:
-```bash
-git clone <repository-url>
-cd <repository-folder>
-```
-
-### **2. Activate a Virtual Environment**
-
-```bash
-python -m venv .venv
-.venv\Scripts\activate (Windows)
-```
-### **3. Install Dependencies**
-Install the required libraries by running:
-
-```bash
-pip install -r requirements.txt
-```
-
-### **4. How to Execute the Code**
-
-#### 1. Run the Main Script
-   To execute the main script, use the following command:
-
-```bash
-python ChatDB_query.py
-```
-### 2. Interactive Menu
-   Once the script starts, follow the interactive prompts:
-
-* Select the database type (MySQL or MongoDB).
-* Provide the necessary credentials (e.g., host, username, password, MongoDB connection string).
-* Explore the tables, collections, or generate sample queries.
-
-### **5. Functionalities**
-#### MySQL
-* Show Tables and Columns: View all tables in the current schema and their columns.
-* Upload Dataset: Upload .sql files to the connected MySQL database for creating or populating tables.
-* Delete Dataset: Drop specific tables or the entire schema.
-* Switch Schema: After dropping a schema, select another existing schema or create a new one.
-* Generate Sample Queries: Create basic and advanced queries based on available tables.
-#### MongoDB
-* Show Collections and Fields: List all collections in the current database and explore their field structures.
-* Upload Dataset: Insert .json files into the connected MongoDB database as collections.
-* Delete Dataset: Drop specific collections or the entire database.
-* Switch Database: After dropping a database, choose an existing one or create a new database.
-* Generate Sample Queries: Generate MongoDB aggregation pipelines and queries based on collections.
+1. Run the ChatDB application:
+   ```bash
+   python ChatDB_query.py
+   ```
+2. Follow the on-screen instructions to:
+- Connect to a Database:
+  - For MySQL, provide the host, username, and password to connect.
+  - For MongoDB, provide the connection string and database name.
+- Explore Schema:
+  - View tables and their columns for MySQL.
+  - View collections and their fields for MongoDB.
+- Upload Datasets:
+  - Upload .sql files for MySQL or .json files for MongoDB.
+- Delete Data:
+  - Drop specific tables/collections or entire databases.
+- Generate Queries:
+  - Create and execute sample queries with constructs like GROUP BY, $group, ORDER BY, $sort, etc.
+- Use Natural Language:
+  - Enter natural language queries like "Find total sales grouped by product" to generate SQL or MongoDB queries automatically.
