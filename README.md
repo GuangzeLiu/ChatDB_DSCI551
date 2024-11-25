@@ -78,3 +78,12 @@ ChatDB is an interactive application that simplifies database interactions for b
   - Create and execute sample queries with constructs like GROUP BY, $group, ORDER BY, $sort, etc.
 - Use Natural Language:
   - Enter natural language queries like "Find total sales grouped by product" to generate SQL or MongoDB queries automatically.
+## Datasets used for testing
+- MySQL: MySQL Example datasets: https://dev.mysql.com/doc/index-other.html
+  - Sakila database on MySQL Example datasets
+  - World database on MySQL Example datasets
+  - Students and enrollments datasets from Hw3
+- MongoDB: Sample datasets from MongoDB cloud:
+  - Sample_airbnb
+  - Sample_restaurants
+  - Students and enrollments datasets from Hw3(transformed to .json format)
