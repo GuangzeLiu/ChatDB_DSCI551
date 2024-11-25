@@ -83,7 +83,7 @@ ChatDB is an interactive application that simplifies database interactions for b
   - Sakila database on MySQL Example datasets
   - World database on MySQL Example datasets
   - Students and enrollments datasets from Hw3
-- MongoDB: Sample datasets from MongoDB cloud:
+- MongoDB: Sample databases from MongoDB cloud:
   - Sample_airbnb
   - Sample_restaurants
-  - Students and enrollments datasets from Hw3(transformed to .json format)
+  - Students and enrollments database from Hw3(transformed to .json format)
