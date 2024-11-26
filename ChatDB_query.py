@@ -2,17 +2,12 @@ import mysql.connector
 from pymongo import MongoClient
 import random
 import getpass
-import pandas as pd
 from difflib import get_close_matches
-
-import inflect
-
 import re
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
-
 
 # Function to connect to MySQL
 def connect_mysql():
@@ -33,8 +28,6 @@ def connect_mysql():
     except mysql.connector.Error as err:
         print(f"Error: {err}")
         return None
-
-
 # Function to show available tables and columns in MySQL
 def show_mysql_tables_and_columns(connection):
     if connection is None:
@@ -62,7 +55,6 @@ def show_mysql_tables_and_columns(connection):
             print(f" - {column[0]} ({column[1]})")
         print("\n")
 
-
 def connect_mongodb():
     while True:
         try:
@@ -89,7 +81,6 @@ def connect_mongodb():
         except Exception as e:
             print(f"Error: {e}")
             print("Failed to connect to MongoDB. Please check the connection string and try again.")
-
 
 def show_mongodb_collections_and_fields(db):
     if db is None:
@@ -119,7 +110,6 @@ def show_mongodb_collections_and_fields(db):
             print(f" - No documents found in collection '{collection_name}'")
 
         print("\n")  # Newline after each collection for clarity
-
 
 def generate_mysql_sample_queries(connection, max_queries=2):
     if connection is None:
@@ -247,7 +237,6 @@ def generate_mysql_sample_queries(connection, max_queries=2):
     else:
         print("No meaningful sample queries found or not enough columns to generate queries.")
         return []
-
 
 def generate_mysql_construct_queries(connection, construct, max_queries=2):
     if connection is None:
@@ -395,7 +384,6 @@ def generate_mysql_construct_queries(connection, construct, max_queries=2):
         print("No meaningful sample queries found or not enough columns to generate queries.")
         return []
 
-
 def generate_mongodb_sample_queries(db, max_queries=1):
 
     if db is None:
@@ -511,7 +499,6 @@ def generate_mongodb_sample_queries(db, max_queries=1):
                     print(f"Error: {e}")
 
     return valid_queries
-
 
 def generate_mongodb_construct_queries(db, construct, max_queries=2):
     if db is None:
@@ -705,7 +692,6 @@ def generate_mongodb_construct_queries(db, construct, max_queries=2):
     # Randomly select up to `max_queries` queries
     return random.sample(valid_queries, min(max_queries, len(valid_queries)))
 
-
 def upload_dataset_to_database(connection=None, db=None, db_type="MySQL"):
     """
     Upload a dataset into the connected database and display the updated tables or collections.
@@ -780,7 +766,6 @@ def upload_dataset_to_database(connection=None, db=None, db_type="MySQL"):
         print(f"File not found: {file_path}")
     except Exception as e:
         print(f"Error uploading dataset: {e}")
-
 
 def drop_tables_or_schema(connection=None, db=None, db_type="MySQL"):
     """
@@ -913,7 +898,6 @@ def drop_tables_or_schema(connection=None, db=None, db_type="MySQL"):
     except Exception as e:
         print(f"Error dropping tables or schema/database: {e}")
 
-
 def get_table_schema(connection):
     """
     Fetch table schema information dynamically from the database.
@@ -928,7 +912,6 @@ def get_table_schema(connection):
         columns = cursor.fetchall()
         schema[table] = [column[0].lower() for column in columns]
     return schema
-
 
 def map_field_to_column(user_field, schema):
     """
@@ -965,7 +948,6 @@ def map_field_to_column(user_field, schema):
 
     print(f"Failed to map field '{user_field}'.")
     return user_field
-
 
 def find_table_for_columns(columns, schema):
    
@@ -1005,8 +987,6 @@ sql_patterns = [
 
 
 ]
-
-
 
 def process_natural_language_query_mysql(user_query, connection=None, db_type="MySQL"):
     """
@@ -1182,7 +1162,6 @@ mongo_patterns = [
 
 ]
 
-
 def process_natural_language_query_mongodb(user_query, db=None):
     """
     Process natural language query for MongoDB and generate an aggregation pipeline.
@@ -1318,8 +1297,6 @@ def process_natural_language_query_mongodb(user_query, db=None):
     print("No matching query pattern found for the given natural language query.")
     return None
 
-
-
 def show_mongodb_collections_and_fields(db):
     if db is None:
         print("MongoDB connection is not available.")
@@ -1348,7 +1325,6 @@ def show_mongodb_collections_and_fields(db):
             print(f" - No documents found in collection '{collection_name}'")
 
         print("\n")  # Newline after each collection for clarity
-
 
 def query_decision(connection=None, db=None, db_type="MySQL"):
     generated_queries = []
@@ -1561,8 +1537,6 @@ def query_decision(connection=None, db=None, db_type="MySQL"):
 
         else:
             print("Invalid choice. Please try again.")
-
-
 def chatdb_menu():
     while True:
         print("\n--- ChatDB Main Menu ---")
@@ -1686,7 +1660,6 @@ def chatdb_menu():
 
         else:
             print("Invalid choice. Please enter '1' for MySQL, '2' for MongoDB, or '0' to exit.")
-
 
 if __name__ == "__main__":
     chatdb_menu()
