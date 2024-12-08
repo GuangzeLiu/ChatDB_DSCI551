@@ -34,6 +34,26 @@ ChatDB is an interactive application that simplifies database interactions for b
 - Delete specific collections or entire databases.
 - Process natural language queries into MongoDB pipelines.
 
+## Libraries Used
+
+The following libraries are used in the project:
+
+1. **mysql-connector-python**: For connecting and interacting with MySQL databases.
+
+2. **pymongo**: For connecting and interacting with MongoDB databases.
+
+3. **random**: Standard library for generating random numbers and choices (no installation required).
+
+4. **getpass**: Standard library for securely handling password inputs (no installation required).
+
+5. **difflib**: Standard library for finding close matches between strings (no installation required).
+
+6. **re**: Standard library for regular expressions (no installation required).
+
+7. **nltk**: For natural language processing tasks such as tokenization, lemmatization, and stopword removal.
+
+Make sure all dependencies are installed before running the application.
+
 ## Installation
 
 ### Prerequisites
