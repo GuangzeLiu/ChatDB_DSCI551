@@ -16,6 +16,7 @@ ChatDB is an interactive application that simplifies database interactions for b
     - `GROUP BY`
     - `HAVING`
     - `JOIN`
+    - `Exists`
     - `ORDER BY`
 - Execute queries and display results.
 - Upload datasets from `.sql` files.
