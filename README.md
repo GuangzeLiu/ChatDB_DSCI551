@@ -2,39 +2,7 @@
 
 ChatDB is an interactive application that simplifies database interactions for both SQL (MySQL) and NoSQL (MongoDB) databases. It allows users to query, upload, delete, and explore datasets using either natural language or predefined constructs, making database management intuitive and user-friendly.
 
-## Features
-
-### General Features
-- Support for **MySQL** and **MongoDB** databases.
-- Secure credential handling for database connections.
-- Dynamic schema exploration:
-    - View tables and columns in MySQL.
-    - View collections and fields in MongoDB.
-
-### MySQL Features
-- Generate sample queries with advanced SQL constructs like:
-    - `GROUP BY`
-    - `HAVING`
-    - `JOIN`
-    - `Exists`
-    - `ORDER BY`
-- Execute queries and display results.
-- Upload datasets from `.sql` files.
-- Delete specific tables or entire schemas.
-- Process natural language queries into SQL.
-
-### MongoDB Features
-- Generate aggregation pipelines for constructs like:
-    - `$group`
-    - `$match`
-    - `$sort`
-    - `$limit`
-- Execute queries and display results.
-- Upload datasets from `.json` files.
-- Delete specific collections or entire databases.
-- Process natural language queries into MongoDB pipelines.
-
-## Libraries Used
+## Important Libraries Used
 
 The following libraries are used in the project:
 
@@ -66,11 +34,25 @@ Make sure all dependencies are installed before running the application.
    git clone https://github.com/your-repository/chatdb.git
    cd chatdb
    ```
-2. Install dependencies:
+2. Create and Activate the Virtual Environment:
+   ```bash
+   python -m venv venv
+   ```
+   This will create a .venv folder in your project directory to hold the isolated environment.
+   ```bash
+   .venv\Scripts\activate
+   ```
+   Once activated, the terminal prompt will show (.venv) at the beginning.
+
+3. Upgrade pip and setuptools:
+   ```bash
+   python.exe -m pip install --upgrade pip
+   ```
+4. Install dependencies:
     ```bash
     pip install -r requirements.txt
     ```
-3. Ensure that the nltk data is downloaded:
+5. Ensure that the nltk data is downloaded:
     ```bash
     import nltk
     nltk.download('stopwords')
@@ -99,6 +81,39 @@ Make sure all dependencies are installed before running the application.
   - Create and execute sample queries with constructs like GROUP BY, $group, ORDER BY, $sort, etc.
 - Use Natural Language:
   - Enter natural language queries like "Find total sales grouped by product" to generate SQL or MongoDB queries automatically.
+
+## Features
+
+### General Features
+- Support for **MySQL** and **MongoDB** databases.
+- Secure credential handling for database connections.
+- Dynamic schema exploration:
+  - View tables and columns in MySQL.
+  - View collections and fields in MongoDB.
+
+### MySQL Features
+- Generate sample queries with advanced SQL constructs like:
+  - `GROUP BY`
+  - `HAVING`
+  - `JOIN`
+  - `Exists`
+  - `ORDER BY`
+- Execute queries and display results.
+- Upload datasets from `.sql` files.
+- Delete specific tables or entire schemas.
+- Process natural language queries into SQL.
+
+### MongoDB Features
+- Generate aggregation pipelines for constructs like:
+  - `$group`
+  - `$match`
+  - `$sort`
+  - `$limit`
+- Execute queries and display results.
+- Upload datasets from `.json` files.
+- Delete specific collections or entire databases.
+- Process natural language queries into MongoDB pipelines.
+
 ## Datasets used for testing
 - MySQL: MySQL Example datasets: https://dev.mysql.com/doc/index-other.html
   - Sakila database on MySQL Example datasets
