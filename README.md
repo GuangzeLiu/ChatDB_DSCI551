@@ -44,7 +44,7 @@ Make sure all dependencies are installed before running the application.
    ```
    Once activated, the terminal prompt will show (.venv) at the beginning.
 
-3. Upgrade pip and setuptools:
+3. Upgrade pip:
    ```bash
    python.exe -m pip install --upgrade pip
    ```
