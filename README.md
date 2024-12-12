@@ -2,9 +2,29 @@
 
 ChatDB is an interactive application that simplifies database interactions for both SQL (MySQL) and NoSQL (MongoDB) databases. It allows users to query, upload, delete, and explore datasets using either natural language or predefined constructs, making database management intuitive and user-friendly.
 
+## Table of Contents
+1. [File Structure](#file-structure)
+2. [Important Libraries Used](#important-libraries-used)
+3. [Installation](#installation)
+    - [Prerequisites](#prerequisites)
+    - [Setup](#setup)
+4. [Usage](#usage)
+5. [Features](#features)
+    - [General Features](#general-features)
+    - [MySQL Features](#mysql-features)
+    - [MongoDB Features](#mongodb-features)
+6. [Datasets Used for Testing](#datasets-used-for-testing)
+
+## File Structure
+
+- **DataSetsUsed/**: Directory storing sample datasets (e.g., `.sql` and `.json` files) used for testing the application.
+- **ChatDB_query.py**: The main script to run the ChatDB application. It contains the logic for interacting with SQL and NoSQL databases.
+- **README.md**: Documentation file providing an overview of the project, installation steps, usage instructions, and more.
+- **requirements.txt**: Lists all dependencies required to run the project, allowing users to install them easily using `pip`.
+
 ## Important Libraries Used
 
-The following libraries are used in the project:
+The following libraries used in the project:
 
 1. **mysql-connector-python**: For connecting and interacting with MySQL databases.
 
@@ -66,21 +86,7 @@ Make sure all dependencies are installed before running the application.
    ```bash
    python ChatDB_query.py
    ```
-2. Follow the on-screen instructions to:
-- Connect to a Database:
-  - For MySQL, provide the host, username, and password to connect.
-  - For MongoDB, provide the connection string and database name.
-- Explore Schema:
-  - View tables and their columns for MySQL.
-  - View collections and their fields for MongoDB.
-- Upload Datasets:
-  - Upload .sql files for MySQL or .json files for MongoDB.
-- Delete Data:
-  - Drop specific tables/collections or entire databases.
-- Generate Queries:
-  - Create and execute sample queries with constructs like GROUP BY, $group, ORDER BY, $sort, etc.
-- Use Natural Language:
-  - Enter natural language queries like "Find total sales grouped by product" to generate SQL or MongoDB queries automatically.
+2. Follow the on-screen instructions to explore the ChatDB.
 
 ## Features
 
