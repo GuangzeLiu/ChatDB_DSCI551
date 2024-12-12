@@ -56,11 +56,17 @@ Make sure all dependencies are installed before running the application.
    ```
 2. Create and Activate the Virtual Environment:
    ```bash
-   python -m venv venv
+   python -m venv myenv
    ```
    This will create a .venv folder in your project directory to hold the isolated environment.
+   
+    - Windows:
    ```bash
-   .venv\Scripts\activate
+   myenv\Scripts\activate
+   ```
+   - macOS/Linux:
+   ```bash
+   source myenv/bin/activate
    ```
    Once activated, the terminal prompt will show (.venv) at the beginning.
 
