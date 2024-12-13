@@ -1011,7 +1011,7 @@ def process_natural_language_query_mysql(user_query, connection=None, db_type="M
             group_by = groups[3] if len(groups) > 3 else None  # Extract group by field
             if len(groups) > 4 and groups[4]:
                 condition = groups[4].strip()
-                print(f"Condition extracted: {condition}")
+              
             else:
                 condition = None
                 print("Condition not captured.")
@@ -1244,8 +1244,91 @@ def process_natural_language_query_mongodb(user_query, db=None):
                 except ValueError as ve:
                     print(f"Error: Unable to parse the value '{value}'.")
                     return None
+            if operation.lower() in ["count", "number of", "how many"]:
+                pipeline.append({
+                    "$group": {
+                        "_id": f"${group_by_mapped}",
+                        "count": {"$sum": 1}
+                    }
+                })
+                if groups[4]:  # HAVING condition exists
+                    having_condition = groups[4].strip()
+                    operator_map = {
+                        ">": "$gt",
+                        "<": "$lt",
+                        ">=": "$gte",
+                        "<=": "$lte",
+                        "==": "$eq",
+                        "=": "$eq",
+                        "!=": "$ne"
+                    }
+                    having_parts = re.match(r"(?i)(count)\s*(>|<|>=|<=|==|!=)\s*(\d+)", having_condition)
+                    if having_parts:
+                        field_name, operator, value = having_parts.groups()
+                        value = int(value)  # Convert value to integer
+                        mongo_operator = operator_map[operator]
+                        pipeline.append({
+                            "$match": {"count": {mongo_operator: value}}
+                        })
+                    else:
+                        print(f"Error: Could not parse the HAVING condition: {having_condition}")
+            elif operation.lower() in ["sum", "add up", "aggregate", "total"]:
+                pipeline.append({
+                        "$group": {
+                            "_id": f"${group_by_mapped}",
+                            "total_sum": {"$sum": f"${field_mapped}"}
+                    }
+                })
+                if groups[4]:  # HAVING condition exists
+                    having_condition = groups[4].strip()
+                    operator_map = {
+                            ">": "$gt",
+                            "<": "$lt",
+                            ">=": "$gte",
+                            "<=": "$lte",
+                            "==": "$eq",
+                            "=": "$eq",
+                            "!=": "$ne"
+                }
+                        # Parse the HAVING clause
+                    having_parts = re.match(r"(?i)(sum|total_sum)\s*(>|<|>=|<=|==|!=)\s*(\d+)", having_condition)
+                    if having_parts:
+                        field_name, operator, value = having_parts.groups()
+                        value = int(value)  # Convert value to integer
+                        mongo_operator = operator_map[operator]
+                        pipeline.append({
+                                "$match": {f"total_sum": {mongo_operator: value}}
+            })
+            elif operation.lower() in ["average", "avg", "mean", "compute average"]:
+                pipeline.append({
+                    "$group": {
+                        "_id": f"${group_by_mapped}",
+                        "average": {"$avg": f"${field_mapped}"}
+                         }
+                })
+                if groups[4]:  # HAVING condition exists
+                    having_condition = groups[4].strip()
+                    operator_map = {
+                        ">": "$gt",
+                        "<": "$lt",
+                        ">=": "$gte",
+                        "<=": "$lte",
+                        "==": "$eq",
+                        "=": "$eq",
+                        "!=": "$ne"
+                    }
+                    having_parts = re.match(r"(?i)(average)\s*(>|<|>=|<=|==|!=)\s*(\d+)", having_condition)
+                    if having_parts:
+                        field_name, operator, value = having_parts.groups()
+                        value = int(value)  # Convert value to integer
+                        mongo_operator = operator_map[operator]
+                        pipeline.append({
+                            "$match": {"average": {mongo_operator: value}}
+                        })
+                    else:
+                        print(f"Error: Could not parse the HAVING condition: {having_condition}")
 
-                # Add $match stage with the condition
+            elif operation.lower() in ["select", "filter", "find"]:
                 operator_map = {
                     ">": "$gt",
                     "<": "$lt",
@@ -1255,38 +1338,26 @@ def process_natural_language_query_mongodb(user_query, db=None):
                     "=": "$eq",
                     "!=": "$ne"
                 }
-
                 if operator in operator_map:
                     mongo_operator = operator_map[operator]
-                    pipeline.append({"$match": {where_field_mapped: {mongo_operator: value}}})
-                else:
-                    print(f"Error: Unsupported operator '{operator}'.")
-                    return None
-
-            if group_by:
-                # Add $group stage for grouping
-                pipeline.append({
-                    "$group": {
-                        "_id": f"${group_by_mapped}",
-                        field_mapped: {"$first": f"${field_mapped}"}
-                    }
-                })
-
-            if not group_by:
-                # Include fields in the projection if there's no grouping
-                pipeline.append({
+                    pipeline.append({"$match": {where_field: {mongo_operator: value}}})
+                    pipeline.append({
                     "$project": {
                         "_id": 0,
                         field_mapped: 1,
                         group_by_mapped: 1 if group_by else None
                     }
                 })
+                else:
+                    print(f"Error: Unsupported operator '{operator}'.")
+                    return None
+            
 
-            print(f"Condition: {operator} {value if value else ''}, Pipeline: {pipeline}")
+           
 
-            description = pattern["description"].replace("<field>", field).replace(
-    "<field> <operator> <value>", f"{where_field} {operator} {value}"
-)
+            
+
+            description = pattern["description"].replace("<field>", field).replace("<field> <operator> <value>", f"{where_field} {operator} {value}").replace("<group_field>", group_by)
 
             return {
                 "description": description,
@@ -1609,7 +1680,7 @@ def chatdb_menu():
                     print("2. Upload a collection")
                     print("3. Delete a collection")
                     print("4. Sample queries")
-                    print("5. Ask Question")
+                    print("5. Enter a natural language query")
                     print("0. Back to main menu")
 
                     choice = input("Choose an option: ").strip()
