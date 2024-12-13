@@ -78,14 +78,6 @@ cd ChatDB_DSCI551
     ```bash
     pip install -r requirements.txt
     ```
-5. Ensure that the nltk data is downloaded:
-    ```bash
-    import nltk
-    nltk.download('stopwords')
-    nltk.download('wordnet')
-    nltk.download('punkt')
-    nltk.download('punkt_tab')
-    ```
 ## Usage
 
 1. Run the ChatDB application:
