@@ -51,7 +51,7 @@ Make sure all dependencies are installed before running the application.
 ### Setup
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-repository/chatdb.git
+   git clone https://github.com/GuangzeLiu/ChatDB_DSCI551.git
    cd chatdb
    ```
 2. Create and Activate the Virtual Environment:
